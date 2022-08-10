@@ -201,9 +201,13 @@ int main(void)
 
 
 
-  //HAL_ADCEx_Calibration_Start(&hadc1);
+  HAL_ADCEx_Calibration_Start(&hadc1);
+
+  __HAL_TIM_CLEAR_FLAG(&htim3, TIM_SR_UIF); // очищаем флаг
+  HAL_TIM_Base_Start_IT(&htim3); //Включаем прерывание
+
+
   HAL_ADC_Start_DMA(&hadc1, (uint32_t *) SticPosADC, 4);
-  HAL_TIM_Base_Start(&htim3);
 
 
 /*
@@ -235,9 +239,9 @@ __NOP();
 
 
 
-	 normalizeSticValue();
-	 HAL_UART_Transmit(&huart1, position, 4, HAL_MAX_DELAY);
-	 HAL_Delay(100);
+	 //normalizeSticValue();
+	 //HAL_UART_Transmit(&huart1, position, 4, HAL_MAX_DELAY);
+	 //HAL_Delay(100);
 
 
   }
@@ -307,9 +311,9 @@ static void MX_ADC1_Init(void)
   */
   hadc1.Instance = ADC1;
   hadc1.Init.ScanConvMode = ADC_SCAN_ENABLE;
-  hadc1.Init.ContinuousConvMode = DISABLE;
+  hadc1.Init.ContinuousConvMode = ENABLE;
   hadc1.Init.DiscontinuousConvMode = DISABLE;
-  hadc1.Init.ExternalTrigConv = ADC_EXTERNALTRIGCONV_T3_TRGO;
+  hadc1.Init.ExternalTrigConv = ADC_SOFTWARE_START;
   hadc1.Init.DataAlign = ADC_DATAALIGN_RIGHT;
   hadc1.Init.NbrOfConversion = 4;
   if (HAL_ADC_Init(&hadc1) != HAL_OK)
@@ -410,7 +414,7 @@ static void MX_TIM3_Init(void)
   htim3.Instance = TIM3;
   htim3.Init.Prescaler = 8000;
   htim3.Init.CounterMode = TIM_COUNTERMODE_UP;
-  htim3.Init.Period = 100;
+  htim3.Init.Period = 200;
   htim3.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
   htim3.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
   if (HAL_TIM_Base_Init(&htim3) != HAL_OK)
@@ -519,7 +523,13 @@ static void MX_GPIO_Init(void)
 }
 
 /* USER CODE BEGIN 4 */
-
+void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
+{
+        if(htim->Instance == TIM3)
+        {
+                HAL_UART_Transmit(&huart1, "0.5s \r\n", sizeof("0.5s \r"), 100);
+        }
+}
 /* USER CODE END 4 */
 
 /**
