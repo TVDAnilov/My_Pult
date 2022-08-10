@@ -1,21 +1,21 @@
 /* USER CODE BEGIN Header */
 /**
-  ******************************************************************************
-  * @file           : main.c
-  * @brief          : Main program body
-  ******************************************************************************
-  * @attention
-  *
-  * <h2><center>&copy; Copyright (c) 2022 STMicroelectronics.
-  * All rights reserved.</center></h2>
-  *
-  * This software component is licensed by ST under BSD 3-Clause license,
-  * the "License"; You may not use this file except in compliance with the
-  * License. You may obtain a copy of the License at:
-  *                        opensource.org/licenses/BSD-3-Clause
-  *
-  ******************************************************************************
-  */
+ ******************************************************************************
+ * @file           : main.c
+ * @brief          : Main program body
+ ******************************************************************************
+ * @attention
+ *
+ * <h2><center>&copy; Copyright (c) 2022 STMicroelectronics.
+ * All rights reserved.</center></h2>
+ *
+ * This software component is licensed by ST under BSD 3-Clause license,
+ * the "License"; You may not use this file except in compliance with the
+ * License. You may obtain a copy of the License at:
+ *                        opensource.org/licenses/BSD-3-Clause
+ *
+ ******************************************************************************
+ */
 /* USER CODE END Header */
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
@@ -70,96 +70,84 @@ static void MX_TIM3_Init(void);
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
 
-volatile uint16_t SticPosADC[4] = {};
-static  uint8_t position[4] = {};  //Не спутать с 4 осями джойстка!
-									//position [0] - лев. стик, вертикаль,
-									//[1] - направление движенияпо вертикали, 0 стоим на месте, 1- вперед,  2 назад.
-									//[2] - правый стик, горизонталь.
-									//[3] - направление поворота руля, 0 среднее положение (прямо), 1 направо, 2 налево.
+volatile uint16_t SticPosADC[4] = { };
+static uint8_t position[4] = { };  //Не спутать с 4 осями джойстка!
+//position [0] - лев. стик, вертикаль,
+//[1] - направление движенияпо вертикали, 0 стоим на месте, 1- вперед,  2 назад.
+//[2] - правый стик, горизонталь.
+//[3] - направление поворота руля, 0 среднее положение (прямо), 1 направо, 2 налево.
 
+void normalizeSticValue(void) {
 
+	/////////////////////////////////////////////////////////////////////// Вперед
+	if (SticPosADC[1] < 700) {
+		position[0] = 100;
+		position[1] = 1;
+	}
+	if (SticPosADC[1] < 1400 && SticPosADC[1] > 700) {
+		position[0] = 65;
+		position[1] = 1;
+	}
 
+	if (SticPosADC[1] < 1800 && SticPosADC[1] > 1400) {
+		position[0] = 30;
+		position[1] = 1;
+	}
 
-void normalizeSticValue(void){
+	////////////////////////////////////////////////////////////////////////////////// назад
 
-		/////////////////////////////////////////////////////////////////////// Вперед
-		if( SticPosADC[1] < 700){
-			position[0] = 100;
-			position[1] = 1;
-		}
-		if( SticPosADC[1] < 1400 && SticPosADC[1] > 700){
-			position[0] = 65;
-			position[1] = 1;
-		}
+	if (SticPosADC[1] > 2200) {
+		position[0] = 20;
+		position[1] = 2;
+	}
 
-		if(SticPosADC[1] < 1800 && SticPosADC[1] > 1400){
-			position[0] = 30;
-			position[1] = 1;
-		}
+	/////////////////////////////////////////////////////////////////////////////////////// на месте
 
-		////////////////////////////////////////////////////////////////////////////////// назад
+	if (SticPosADC[1] > 1800 && SticPosADC[1] < 2200) {
+		position[0] = 0;
+		position[1] = 0;
+	}
+	///////////////////////////////////////////////////////////////////////////////
 
-		if( SticPosADC[1] > 2200){
-			position[0] = 20;
-			position[1] = 2;
-		}
+	/////////////////////////////////////////////////////////////////////// Направо
+	if (SticPosADC[2] < 700) {
+		position[2] = 75;
+		position[3] = 1;
+	}
+	if (SticPosADC[2] < 1400 && SticPosADC[2] > 700) {
+		position[2] = 50;
+		position[3] = 1;
+	}
 
-		/////////////////////////////////////////////////////////////////////////////////////// на месте
+	if (SticPosADC[2] < 1800 && SticPosADC[2] > 1400) {
+		position[2] = 20;
+		position[3] = 1;
+	}
 
-		if(SticPosADC[1] > 1800 && SticPosADC[1] < 2200){
-			position[0] = 0;
-			position[1] = 0;
-		}
-		///////////////////////////////////////////////////////////////////////////////
+	////////////////////////////////////////////////////////////////////////////////// НАлево
 
+	if (SticPosADC[2] > 2200 && SticPosADC[2] < 3100) {
+		position[2] = 20;
+		position[3] = 2;
+	}
 
-		/////////////////////////////////////////////////////////////////////// Направо
-		if( SticPosADC[2] < 700){
-			position[2] = 75;
-			position[3] = 1;
-		}
-		if( SticPosADC[2] < 1400 && SticPosADC[2] > 700){
-			position[2] = 50;
-			position[3] = 1;
-		}
+	if (SticPosADC[2] > 3100 && SticPosADC[2] < 3800) {
+		position[2] = 65;
+		position[3] = 2;
+	}
 
-		if(SticPosADC[2] < 1800 && SticPosADC[2] > 1400){
-			position[2] = 20;
-			position[3] = 1;
-		}
+	if (SticPosADC[2] > 3800) {
+		position[2] = 100;
+		position[3] = 2;
+	}
 
-		////////////////////////////////////////////////////////////////////////////////// НАлево
+	/////////////////////////////////////////////////////////////////////////////////////// на месте
 
-		if( SticPosADC[2] > 2200 && SticPosADC[2] < 3100){
-			position[2] = 20;
-			position[3] = 2;
-		}
-
-		if( SticPosADC[2] > 3100 && SticPosADC[2] < 3800){
-			position[2] = 65;
-			position[3] = 2;
-		}
-
-		if( SticPosADC[2] > 3800){
-			position[2] = 100;
-			position[3] = 2;
-		}
-
-
-
-
-		/////////////////////////////////////////////////////////////////////////////////////// на месте
-
-		if(SticPosADC[2] > 1800 && SticPosADC[2] < 2200){
-			position[2] = 0;
-			position[3] = 0;
-		}
-		///////////////////////////////////////////////////////////////////////////////
-
-
-
-
-
+	if (SticPosADC[2] > 1800 && SticPosADC[2] < 2200) {
+		position[2] = 0;
+		position[3] = 0;
+	}
+	///////////////////////////////////////////////////////////////////////////////
 
 }
 /* USER CODE END 0 */
@@ -199,52 +187,39 @@ int main(void)
   MX_TIM3_Init();
   /* USER CODE BEGIN 2 */
 
+	HAL_ADCEx_Calibration_Start(&hadc1);
 
+	__HAL_TIM_CLEAR_FLAG(&htim3, TIM_SR_UIF); // очищаем флаг
+	HAL_TIM_Base_Start_IT(&htim3); //Включаем прерывание
 
-  HAL_ADCEx_Calibration_Start(&hadc1);
+	HAL_ADC_Start_DMA(&hadc1, (uint32_t*) SticPosADC, 4);
 
-  __HAL_TIM_CLEAR_FLAG(&htim3, TIM_SR_UIF); // очищаем флаг
-  HAL_TIM_Base_Start_IT(&htim3); //Включаем прерывание
-
-
-  HAL_ADC_Start_DMA(&hadc1, (uint32_t *) SticPosADC, 4);
-
-
-/*
-__NOP();
-__NOP();
-__NOP();
-__NOP();
-__NOP();
-__NOP();
-__NOP();
-__NOP();
-*/
-
-
-
-
+	/*
+	 __NOP();
+	 __NOP();
+	 __NOP();
+	 __NOP();
+	 __NOP();
+	 __NOP();
+	 __NOP();
+	 __NOP();
+	 */
 
   /* USER CODE END 2 */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
-  while (1)
-  {
+	while (1) {
 
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
 
+		//normalizeSticValue();
+		//HAL_UART_Transmit(&huart1, position, 4, HAL_MAX_DELAY);
+		//HAL_Delay(100);
 
-
-
-	 //normalizeSticValue();
-	 //HAL_UART_Transmit(&huart1, position, 4, HAL_MAX_DELAY);
-	 //HAL_Delay(100);
-
-
-  }
+	}
   /* USER CODE END 3 */
 }
 
@@ -264,7 +239,9 @@ void SystemClock_Config(void)
   RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSI;
   RCC_OscInitStruct.HSIState = RCC_HSI_ON;
   RCC_OscInitStruct.HSICalibrationValue = RCC_HSICALIBRATION_DEFAULT;
-  RCC_OscInitStruct.PLL.PLLState = RCC_PLL_NONE;
+  RCC_OscInitStruct.PLL.PLLState = RCC_PLL_ON;
+  RCC_OscInitStruct.PLL.PLLSource = RCC_PLLSOURCE_HSI_DIV2;
+  RCC_OscInitStruct.PLL.PLLMUL = RCC_PLL_MUL16;
   if (HAL_RCC_OscConfig(&RCC_OscInitStruct) != HAL_OK)
   {
     Error_Handler();
@@ -273,17 +250,17 @@ void SystemClock_Config(void)
   */
   RCC_ClkInitStruct.ClockType = RCC_CLOCKTYPE_HCLK|RCC_CLOCKTYPE_SYSCLK
                               |RCC_CLOCKTYPE_PCLK1|RCC_CLOCKTYPE_PCLK2;
-  RCC_ClkInitStruct.SYSCLKSource = RCC_SYSCLKSOURCE_HSI;
+  RCC_ClkInitStruct.SYSCLKSource = RCC_SYSCLKSOURCE_PLLCLK;
   RCC_ClkInitStruct.AHBCLKDivider = RCC_SYSCLK_DIV1;
-  RCC_ClkInitStruct.APB1CLKDivider = RCC_HCLK_DIV1;
+  RCC_ClkInitStruct.APB1CLKDivider = RCC_HCLK_DIV2;
   RCC_ClkInitStruct.APB2CLKDivider = RCC_HCLK_DIV1;
 
-  if (HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_0) != HAL_OK)
+  if (HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_2) != HAL_OK)
   {
     Error_Handler();
   }
   PeriphClkInit.PeriphClockSelection = RCC_PERIPHCLK_ADC;
-  PeriphClkInit.AdcClockSelection = RCC_ADCPCLK2_DIV2;
+  PeriphClkInit.AdcClockSelection = RCC_ADCPCLK2_DIV8;
   if (HAL_RCCEx_PeriphCLKConfig(&PeriphClkInit) != HAL_OK)
   {
     Error_Handler();
@@ -412,7 +389,7 @@ static void MX_TIM3_Init(void)
 
   /* USER CODE END TIM3_Init 1 */
   htim3.Instance = TIM3;
-  htim3.Init.Prescaler = 8000;
+  htim3.Init.Prescaler = 64000;
   htim3.Init.CounterMode = TIM_COUNTERMODE_UP;
   htim3.Init.Period = 200;
   htim3.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
@@ -523,13 +500,14 @@ static void MX_GPIO_Init(void)
 }
 
 /* USER CODE BEGIN 4 */
-void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
-{
-        if(htim->Instance == TIM3)
-        {
-                HAL_UART_Transmit(&huart1, "0.5s \r\n", sizeof("0.5s \r"), 100);
-        }
+//==============================================================================================================
+void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim) {
+	if (htim->Instance == TIM3) {
+		HAL_UART_Transmit(&huart1, "0.5s \r\n", sizeof("0.5s \r"), 100);
+	}
 }
+
+//==============================================================================================================
 /* USER CODE END 4 */
 
 /**
@@ -539,11 +517,10 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 void Error_Handler(void)
 {
   /* USER CODE BEGIN Error_Handler_Debug */
-  /* User can add his own implementation to report the HAL error return state */
-  __disable_irq();
-  while (1)
-  {
-  }
+	/* User can add his own implementation to report the HAL error return state */
+	__disable_irq();
+	while (1) {
+	}
   /* USER CODE END Error_Handler_Debug */
 }
 
