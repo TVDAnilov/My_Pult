@@ -71,8 +71,8 @@ static uint8_t position[4] = { };  //Не спутать с 4 осями джо�
 
 
 void updateTimerEvent(void){
-
-	//
+	HAL_ADC_Stop_DMA(&hadc1);
+	HAL_ADC_Start_DMA(&hadc1, (uint32_t*) SticPosADC, 4);
 }
 
 
@@ -196,7 +196,7 @@ int main(void)
 	__HAL_TIM_CLEAR_FLAG(&htim3, TIM_SR_UIF); // очищаем флаг
 	HAL_TIM_Base_Start_IT(&htim3); //Включаем прерывание
 
-	HAL_ADC_Start_DMA(&hadc1, (uint32_t*) SticPosADC, 4);
+
 
 	/*
 	 __NOP();
@@ -214,7 +214,8 @@ int main(void)
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
 	while (1) {
-
+        HAL_ADC_Start_DMA(&hadc1, SticPosADC, 4);
+        HAL_Delay(1);
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
@@ -273,11 +274,32 @@ void SystemClock_Config(void)
 
 /* USER CODE BEGIN 4 */
 //==============================================================================================================
+void ADC1_IRQHandler(void)
+{
+  /* USER CODE BEGIN ADC1_2_IRQn 0 */
+
+  /* USER CODE END ADC1_2_IRQn 0 */
+  HAL_ADC_IRQHandler(&hadc1);
+  /* USER CODE BEGIN ADC1_2_IRQn 1 */
+
+  /* USER CODE END ADC1_2_IRQn 1 */
+}
+
+
 void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim) {
 	if (htim->Instance == TIM3) {
-		HAL_UART_Transmit(&huart1, "0.5s \r\n", sizeof("0.2s \r"), 100);
-		updateTimerEvent();
+		HAL_UART_Transmit(&huart1, "0.2s \r", sizeof("0.2s \r"), 100);
+		//updateTimerEvent();
 	}
+}
+
+
+
+
+
+void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef* hadc)
+{
+	HAL_UART_Transmit(&huart1, "HAL_ADC_ConvCpltCallback \r", sizeof("HAL_ADC_ConvCpltCallback \r"), 100);
 }
 
 //==============================================================================================================
