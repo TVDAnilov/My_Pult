@@ -39,7 +39,17 @@
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
 #define max_adc 4095
+
+#define adress_this_device 0x20
+#define adress_pult 0x20
+#define adress_uaz 0x40
+#define adress_ship 0x60
+#define adress_WG_golf 0x80
+
+
+
 #define ADC 100
+
 
 /* USER CODE END PD */
 
