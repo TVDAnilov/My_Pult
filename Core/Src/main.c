@@ -51,6 +51,9 @@
 #define adress_Display 0xA0
 #define adress_hc-12 0xAA
 #define adress_LED 0xB4
+#define adress_engine 0xBE
+#define adress_Servo 0xC8
+
 
 
 /* USER CODE END PD */
