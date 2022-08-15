@@ -47,8 +47,10 @@
 #define adress_WG_golf 0x80
 
 
-
-#define ADC 100
+#define adress_ADC 0x96
+#define adress_Display 0xA0
+#define adress_hc-12 0xAA
+#define adress_LED 0xB4
 
 
 /* USER CODE END PD */
