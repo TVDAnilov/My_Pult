@@ -40,21 +40,23 @@
 /* USER CODE BEGIN PD */
 #define max_adc 4095
 
-#define adress_this_device 0x20
+#define adress_master_device 0x20
 #define adress_pult 0x20
 #define adress_uaz 0x40
 #define adress_ship 0x60
 #define adress_WG_golf 0x80
 
-
 #define adress_ADC 0x96
 #define adress_Display 0xA0
-#define adress_hc-12 0xAA
+#define adress_hc_12 0xAA
 #define adress_LED 0xB4
 #define adress_engine 0xBE
 #define adress_Servo 0xC8
 
-
+#define adress_slave_index 0
+#define adress_master_index 1
+#define crc_adress_devices 2
+#define end_array_index 50
 
 /* USER CODE END PD */
 
@@ -77,10 +79,11 @@ void SystemClock_Config(void);
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
-volatile uint8_t transmitBuff [50] = {};
-volatile uint8_t reciveBuff [50] = {};
-volatile uint16_t SticPosADC[4] = {};
-static uint8_t position[4] = { };  //Не спутать с 4 осями джойстка!
+uint8_t transmitBuff[end_array_index] = { };
+uint8_t reciveBuff[end_array_index] = { };
+uint8_t adress_slave_device = 0;
+uint16_t SticPosADC[4] = { };
+uint8_t position[4] = { };  //Не спутать с 4 осями джойстка!
 //position [0] - лев. стик, вертикаль,
 //[1] - направление движенияпо вертикали, 0 стоим на месте, 1- вперед,  2 назад.
 //[2] - правый стик, горизонталь.
@@ -89,12 +92,26 @@ static uint8_t position[4] = { };  //Не спутать с 4 осями джо�
 struct {
 	volatile uint8_t timerEvent;
 	volatile uint8_t adcDone;
+	volatile uint8_t dataReady;
 
-}flagEvent;
+} flagEvent;
+
+void cleanTxArr(uint8_t adress_slave_device) {
+	transmitBuff[adress_slave_index] = adress_slave_device;
+	transmitBuff[adress_master_index] = adress_master_device;
+	transmitBuff[crc_adress_devices] = 0xF0; //будущий CRC
+	for (uint8_t i = 3; i < end_array_index; i++) {
+		transmitBuff[i] = 0xFF; // код стоп байта
+	}
+
+}
 
 void initPult(void) {
 	flagEvent.timerEvent = 0;
 	flagEvent.adcDone = 0;
+	flagEvent.dataReady = 0;
+
+	cleanTxArr(adress_ship);   // заглушка
 
 	HAL_ADCEx_Calibration_Start(&hadc1);			// калибровка ацп
 
@@ -181,16 +198,36 @@ void normalizeSticValue(void) {
 
 }
 
-void pushArrTX(uint8_t addres_module, uint16_t *pData, uint8_t size){
-	//
+uint8_t pushArrTX(uint8_t addres_module, uint8_t *pData, uint8_t size,
+		uint8_t typeOperation) {
+	uint8_t i = 0;
+	while (transmitBuff[i] != 0xFF) { // найти конец полезных данных, не выходя за пределы массива.
+		if (i < (end_array_index - (size + 5))) { //5 = адрес модуля, тип операции, crc, байт конца команды, стоп.
+			i++;
+		} else {
+			return 1;
+		}
+	}
+	transmitBuff[i] = addres_module;
+	i++;
+	transmitBuff[i] = typeOperation;
+	i++;
+
+	for (uint8_t index = i; index < (i + size); index++) {
+		transmitBuff[index] = pData[index - i];
+	}
+
+	transmitBuff[i + size] = 0xFD;  // crc адреса и команды
+	transmitBuff[i + size + 1] = 0xFA;  // конец команды
+	transmitBuff[i + size + 2] = 0;  // стоп байт
+
+	return 0;
+
 }
 
-
-
-
-
-void pushArrRX(uint8_t name_device, uint16_t *pData, uint8_t size){
-	//
+void pushArrRX(uint8_t name_device, uint16_t *pData, uint8_t size,
+		uint8_t typeOperation) {
+//
 }
 
 /* USER CODE END 0 */
@@ -230,11 +267,6 @@ int main(void) {
 	/* USER CODE BEGIN 2 */
 	initPult();
 
-
-
-
-
-
 	/* USER CODE END 2 */
 
 	/* Infinite loop */
@@ -248,15 +280,23 @@ int main(void) {
 			updateTimerEvent();
 		}
 
-		if(flagEvent.adcDone == 1){
+		if (flagEvent.adcDone == 1) {
 			flagEvent.adcDone = 0;
-			pushArrTX(ADC, SticPosADC, sizeof(SticPosADC));
+			flagEvent.dataReady = 1;
+		}
+
+		if (flagEvent.dataReady == 1) {
+			flagEvent.dataReady = 0;
+			normalizeSticValue();
+			pushArrTX(adress_ADC, position, (sizeof(position)), 1); // заполнили массив данными для отправки
+
+			HAL_UART_Transmit(&huart1, transmitBuff, sizeof(transmitBuff), 100); // отправили массив
+
+			cleanTxArr(adress_ship); //очистили массив
+
 		}
 
 
-
-
-		//normalizeSticValue();
 		//HAL_UART_Transmit(&huart1, position, 4, HAL_MAX_DELAY);
 		//HAL_Delay(100);
 	}
