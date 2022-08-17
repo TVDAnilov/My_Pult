@@ -94,6 +94,8 @@ struct {
 	volatile uint8_t timerEvent;
 	volatile uint8_t adcDone;
 	volatile uint8_t dataReady;
+	volatile uint8_t rxReady;
+	volatile uint8_t txReady;
 
 } flagEvent;
 
@@ -113,14 +115,17 @@ void initPult(void) {
 	flagEvent.timerEvent = 0;
 	flagEvent.adcDone = 0;
 	flagEvent.dataReady = 0;
+	flagEvent.rxReady = 0;
+	flagEvent.txReady = 0;
 
-	cleanTxArr(adress_ship);   // заглушка
+
+
 
 	HAL_ADCEx_Calibration_Start(&hadc1);			// калибровка ацп
 
-	__HAL_TIM_CLEAR_FLAG(&htim3, TIM_SR_UIF); 		// очищаем флаг
-	HAL_TIM_Base_Start_IT(&htim3); 					//Включаем прерывание
 
+	//HAL_UART_Receive_DMA(&huart1, reciveBuff, 5);
+	HAL_UARTEx_ReceiveToIdle_DMA(&huart1, reciveBuff, sizeof(reciveBuff));
 }
 
 void updateTimerEvent(void) {
@@ -281,6 +286,15 @@ int main(void)
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
+		if (flagEvent.rxReady == 1){
+			flagEvent.rxReady = 0;
+			//adress_slave_device = reciveBuff[1];
+			__HAL_TIM_CLEAR_FLAG(&htim3, TIM_SR_UIF); 		// очищаем флаг
+			HAL_TIM_Base_Start_IT(&htim3); 					//Включаем прерывание
+			cleanTxArr(adress_slave_device);
+			HAL_UARTEx_ReceiveToIdle_DMA(&huart1, reciveBuff, sizeof(reciveBuff));
+		}
+
 		if (flagEvent.timerEvent == 1) {
 			flagEvent.timerEvent = 0;
 			updateTimerEvent();
@@ -296,14 +310,13 @@ int main(void)
 			normalizeSticValue();
 			pushArrTX(adress_ADC, position, (sizeof(position)), 1); // заполнили массив данными для отправки
 
-			HAL_UART_Transmit(&huart1, transmitBuff, sizeof(transmitBuff), 100); // отправили массив
+			HAL_UART_Transmit_DMA(&huart1, transmitBuff,  sizeof(transmitBuff));  //пока что отправляется весь массив.
+			//HAL_UART_Transmit(&huart1, transmitBuff, sizeof(transmitBuff), 100); // отправили массив
 
-			cleanTxArr(adress_ship); //очистили массив
+			cleanTxArr(adress_slave_device);
 
 		}
 
-		//HAL_UART_Transmit(&huart1, position, 4, HAL_MAX_DELAY);
-		//HAL_Delay(100);
 	}
   /* USER CODE END 3 */
 }
@@ -375,8 +388,9 @@ void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef *hadc) {
 	flagEvent.adcDone = 1;
 }
 
-void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart) {
-//
+void HAL_UARTEx_RxEventCallback(UART_HandleTypeDef *huart, uint16_t Size) {
+	//HAL_UART_Transmit(&huart1, reciveBuff, Size, 100);
+	flagEvent.rxReady = 1;
 }
 
 //==============================================================================================================
