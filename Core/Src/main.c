@@ -315,6 +315,7 @@ int main(void)
 
 			cleanTxArr(adress_slave_device);
 
+
 		}
 
 	}
