@@ -117,10 +117,7 @@ void transmit(void){
 }
 
 
-void connect_ok(void){
-	pushArrTX(adress_slave_device, 0xc8, 1, 1);				// можно пересылать настройки, которые были сделаны на пульте до коннекта слейва.
-	transmit();
-}
+
 
 void cleanTxArr(uint8_t adress_slave_device) {
 	for (uint8_t i = 0; i < end_array_index; i++) {
@@ -255,7 +252,13 @@ uint8_t pushArrTX(uint8_t addres_module, uint8_t *pData, uint8_t size,
 
 }
 
-void parseArrRX(uint16_t *pData, uint8_t size) {
+void connect_ok(void){
+	uint8_t ok = 0xc8;
+	pushArrTX(adress_slave_device, &ok, 1, 1);				// можно пересылать настройки, которые были сделаны на пульте до коннекта слейва.
+	transmit();
+}
+
+void parseArrRX(uint8_t *pData, uint8_t size) {
 
 	if (reciveBuff[flagEvent.rxSize - 2] == crc(reciveBuff, flagEvent.rxSize - 3)) {   //хеш сумма совпала
 		if (flagEvent.contact == 0) {  										//если это приветствие
@@ -268,7 +271,7 @@ void parseArrRX(uint16_t *pData, uint8_t size) {
 		}
 
 
-		if (contact == 1) {											//если уже поздоровались
+		if (flagEvent.contact == 1) {											//если уже поздоровались
 			if(reciveBuff[3] != 0x64){								//если слейв сообщил о принятии битого хеша
 				flagEvent.counterError++;
 			}
@@ -328,7 +331,7 @@ int main(void) {
 		/* USER CODE BEGIN 3 */
 		if (flagEvent.rxReady == 1) {
 			flagEvent.rxReady = 0;
-			parseArrRX(adress_slave_device, reciveBuff, flagEvent.rxSize);
+			parseArrRX(reciveBuff, flagEvent.rxSize);
 			HAL_UARTEx_ReceiveToIdle_DMA(&huart1, reciveBuff,
 					sizeof(reciveBuff));
 		}
