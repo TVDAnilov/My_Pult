@@ -96,9 +96,12 @@ struct {
 	volatile uint8_t dataReady;
 	volatile uint8_t rxReady;
 	volatile uint8_t txReady;
+	volatile uint8_t txSize;
 	volatile uint8_t rxSize;
 	volatile uint8_t contact;
 	volatile uint8_t counterError;
+	volatile uint8_t Led;
+
 
 
 } flagEvent;
@@ -138,7 +141,10 @@ void initPult(void) {
 	flagEvent.txReady = 0;
 	flagEvent.rxSize = 0;
 	flagEvent.contact = 0;
-	flagEvent.counterError = 0;
+	 flagEvent.counterError = 0;
+	 flagEvent.Led = 0;
+	 flagEvent.txSize = 0;
+
 
 
 	HAL_ADCEx_Calibration_Start(&hadc1);			// калибровка ацп
@@ -248,26 +254,30 @@ uint8_t pushArrTX(uint8_t addres_module, uint8_t *pData, uint8_t size,
 	transmitBuff[i + size + 1] = 0xFC;  // конец команды
 	transmitBuff[i + size + 2] = 0xFF;  // стоп байт
 
-	return 0;
+	return i + size;
 
 }
 
 void connect_ok(void){
 	uint8_t ok = 0xc8;
-	pushArrTX(adress_slave_device, &ok, 1, 1);				// можно пересылать настройки, которые были сделаны на пульте до коннекта слейва.
+	pushArrTX(adress_hc_12, &ok, 1, 1);				// можно пересылать настройки, которые были сделаны на пульте до коннекта слейва.
 	transmit();
 }
 
 void parseArrRX(uint8_t *pData, uint8_t size) {
 
-	if (reciveBuff[flagEvent.rxSize - 2] == crc(reciveBuff, flagEvent.rxSize - 3)) {   //хеш сумма совпала
-		if (flagEvent.contact == 0) {  										//если это приветствие
-			adress_slave_device = reciveBuff[0];
-			flagEvent.contact = 1;
-			__HAL_TIM_CLEAR_FLAG(&htim3, TIM_SR_UIF); 		// очищаем флаг
-			HAL_TIM_Base_Start_IT(&htim3); 					//Включаем прерывание
-			cleanTxArr(adress_slave_device);
-			connect_ok();
+	if (reciveBuff[flagEvent.rxSize - 2] == crc(reciveBuff, flagEvent.rxSize - 2)) {   //хеш сумма совпала
+		if (flagEvent.contact == 0) { //если это приветствие
+			if(reciveBuff[3] == adress_hc_12){
+				if(reciveBuff[5] == 0xc8){
+					adress_slave_device = reciveBuff[0];
+					flagEvent.contact = 1;
+					__HAL_TIM_CLEAR_FLAG(&htim3, TIM_SR_UIF); 		// очищаем флаг
+					HAL_TIM_Base_Start_IT(&htim3); 					//Включаем прерывание
+					cleanTxArr(adress_slave_device);
+					connect_ok();
+				}
+			}
 		}
 
 
@@ -329,6 +339,12 @@ int main(void) {
 		/* USER CODE END WHILE */
 
 		/* USER CODE BEGIN 3 */
+		if (flagEvent.Led == 1){
+			flagEvent.Led == 0;
+			uint8_t led[3] = {250,0,0};
+			pushArrTX(adress_LED, led, sizeof(led), 1);
+		}
+
 		if (flagEvent.rxReady == 1) {
 			flagEvent.rxReady = 0;
 			parseArrRX(reciveBuff, flagEvent.rxSize);
@@ -349,10 +365,9 @@ int main(void) {
 		if (flagEvent.dataReady == 1) {
 			flagEvent.dataReady = 0;
 			normalizeSticValue();
-			pushArrTX(adress_ADC, position, (sizeof(position)), 1); // заполнили массив данными для отправки
+			uint8_t sizeBuff = pushArrTX(adress_ADC, position, (sizeof(position)), 1); // заполнили массив данными для отправки
 
-			HAL_UART_Transmit_DMA(&huart1, transmitBuff, sizeof(transmitBuff)); //пока что отправляется весь массив.
-			//HAL_UART_Transmit(&huart1, transmitBuff, sizeof(transmitBuff), 100); // отправили массив
+			HAL_UART_Transmit_DMA(&huart1, transmitBuff, sizeBuff)); //пока что отправляется весь массив.
 
 			cleanTxArr(adress_slave_device);
 
@@ -429,6 +444,11 @@ void HAL_UARTEx_RxEventCallback(UART_HandleTypeDef *huart, uint16_t Size) {
 	//HAL_UART_Transmit(&huart1, reciveBuff, Size, 100);
 	flagEvent.rxReady = 1;
 	flagEvent.rxSize = Size;
+}
+
+void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
+{
+  flagEvent.Led = 1;
 }
 
 //==============================================================================================================
