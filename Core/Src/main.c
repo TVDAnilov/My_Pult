@@ -84,7 +84,7 @@ uint8_t transmitBuff[end_array_index] = { };
 uint8_t reciveBuff[end_array_index] = { };
 uint8_t adress_slave_device = 0;
 uint16_t SticPosADC[4] = { };
-uint8_t position[4] = { };  //Не спутать с 4 осями джойстка!
+uint8_t position[4] = { };
 //position [0] - лев. стик, вертикаль,
 //[1] - направление движенияпо вертикали, 0 стоим на месте, 1- вперед,  2 назад.
 //[2] - правый стик, горизонталь.
@@ -131,6 +131,12 @@ void cleanTxArr(uint8_t adress_slave_device) {
 
 	transmitBuff[crc_adress_devices] = crc(transmitBuff, 2);    //crc
 
+}
+
+void clearRxBuff(void){
+	for (uint8_t i = 0; i < end_array_index; i++) {
+			reciveBuff[i] = 0xFF; // код стоп байта
+		}
 }
 
 void initPult(void) {
@@ -252,9 +258,11 @@ uint8_t pushArrTX(uint8_t addres_module, uint8_t *pData, uint8_t size,
 
 	transmitBuff[i + size] = crc(transmitBuff + (i - 2), size + 2); // crc адреса и команды   2 = смещение назад для адреса модуля и типа команды.
 	transmitBuff[i + size + 1] = 0xFC;  // конец команды
-	transmitBuff[i + size + 2] = 0xFF;  // стоп байт
+	transmitBuff[i + size + 2] = crc(transmitBuff, i + size + 2); // хеш отправки
+	transmitBuff[i + size + 3] = 0xFF;  // стоп байт
 
-	return i + size;
+	i = i + (size + 3) + 1;
+	return i;
 
 }
 
@@ -262,6 +270,7 @@ void connect_ok(void){
 	uint8_t ok = 0xc8;
 	pushArrTX(adress_hc_12, &ok, 1, 1);				// можно пересылать настройки, которые были сделаны на пульте до коннекта слейва.
 	transmit();
+	cleanTxArr(adress_slave_device);
 }
 
 void parseArrRX(uint8_t *pData, uint8_t size) {
@@ -288,7 +297,7 @@ void parseArrRX(uint8_t *pData, uint8_t size) {
 		}
 	}
 
-	if (reciveBuff[flagEvent.rxSize - 2] != crc(reciveBuff, flagEvent.rxSize - 3)) {
+	if (reciveBuff[flagEvent.rxSize - 2] != crc(reciveBuff, flagEvent.rxSize - 2)) {
 	}   //хеш сумма не совпала
 
 }
@@ -340,7 +349,7 @@ int main(void) {
 
 		/* USER CODE BEGIN 3 */
 		if (flagEvent.Led == 1){
-			flagEvent.Led == 0;
+			flagEvent.Led = 0;
 			uint8_t led[3] = {250,0,0};
 			pushArrTX(adress_LED, led, sizeof(led), 1);
 		}
@@ -348,6 +357,7 @@ int main(void) {
 		if (flagEvent.rxReady == 1) {
 			flagEvent.rxReady = 0;
 			parseArrRX(reciveBuff, flagEvent.rxSize);
+			clearRxBuff();
 			HAL_UARTEx_ReceiveToIdle_DMA(&huart1, reciveBuff,
 					sizeof(reciveBuff));
 		}
@@ -365,9 +375,9 @@ int main(void) {
 		if (flagEvent.dataReady == 1) {
 			flagEvent.dataReady = 0;
 			normalizeSticValue();
-			uint8_t sizeBuff = pushArrTX(adress_ADC, position, (sizeof(position)), 1); // заполнили массив данными для отправки
-
-			HAL_UART_Transmit_DMA(&huart1, transmitBuff, sizeBuff)); //пока что отправляется весь массив.
+			uint8_t sizeBuff = pushArrTX(adress_engine, position, 2, 1); // заполнили массив данными для отправки
+			sizeBuff = pushArrTX(adress_Servo, position + 2, 2, 1);
+			HAL_UART_Transmit_DMA(&huart1, transmitBuff, sizeBuff);
 
 			cleanTxArr(adress_slave_device);
 
