@@ -147,9 +147,9 @@ void initPult(void) {
 	flagEvent.txReady = 0;
 	flagEvent.rxSize = 0;
 	flagEvent.contact = 0;
-	 flagEvent.counterError = 0;
-	 flagEvent.Led = 0;
-	 flagEvent.txSize = 0;
+	flagEvent.counterError = 0;
+	flagEvent.Led = 0;
+	flagEvent.txSize = 0;
 
 
 
@@ -247,6 +247,9 @@ uint8_t pushArrTX(uint8_t addres_module, uint8_t *pData, uint8_t size,
 			return 1;
 		}
 	}
+	if (i != 3){
+		i--;
+	}
 	transmitBuff[i] = addres_module;
 	i++;
 	transmitBuff[i] = typeOperation;
@@ -259,6 +262,8 @@ uint8_t pushArrTX(uint8_t addres_module, uint8_t *pData, uint8_t size,
 	transmitBuff[i + size] = crc(transmitBuff + (i - 2), size + 2); // crc адреса и команды   2 = смещение назад для адреса модуля и типа команды.
 	transmitBuff[i + size + 1] = 0xFC;  // конец команды
 	transmitBuff[i + size + 2] = crc(transmitBuff, i + size + 2); // хеш отправки
+
+
 	transmitBuff[i + size + 3] = 0xFF;  // стоп байт
 
 	i = i + (size + 3) + 1;
@@ -270,7 +275,7 @@ void connect_ok(void){
 	uint8_t ok = 0xc8;
 	pushArrTX(adress_hc_12, &ok, 1, 1);				// можно пересылать настройки, которые были сделаны на пульте до коннекта слейва.
 	transmit();
-	cleanTxArr(adress_slave_device);
+
 }
 
 void parseArrRX(uint8_t *pData, uint8_t size) {
@@ -369,16 +374,21 @@ int main(void) {
 
 		if (flagEvent.adcDone == 1) {
 			flagEvent.adcDone = 0;
+			normalizeSticValue();
+			flagEvent.txSize = pushArrTX(adress_engine, position, 2, 1); // заполнили массив данными для отправки
+			flagEvent.txSize = pushArrTX(adress_Servo, position + 0x02, 2, 1);
 			flagEvent.dataReady = 1;
 		}
 
 		if (flagEvent.dataReady == 1) {
 			flagEvent.dataReady = 0;
-			normalizeSticValue();
-			uint8_t sizeBuff = pushArrTX(adress_engine, position, 2, 1); // заполнили массив данными для отправки
-			sizeBuff = pushArrTX(adress_Servo, position + 2, 2, 1);
-			HAL_UART_Transmit_DMA(&huart1, transmitBuff, sizeBuff);
+			if (transmitBuff[7] == 0xFF){
 
+				transmitBuff[7] = 0xF1;
+
+			}
+			HAL_UART_Transmit(&huart1, transmitBuff, flagEvent.txSize, 100); // нужно по дма, в прервыании дма по окаончании отправки стирать transmitBuff
+			flagEvent.txSize = 0;
 			cleanTxArr(adress_slave_device);
 
 		}
@@ -451,7 +461,6 @@ void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef *hadc) {
 }
 
 void HAL_UARTEx_RxEventCallback(UART_HandleTypeDef *huart, uint16_t Size) {
-	//HAL_UART_Transmit(&huart1, reciveBuff, Size, 100);
 	flagEvent.rxReady = 1;
 	flagEvent.rxSize = Size;
 }
