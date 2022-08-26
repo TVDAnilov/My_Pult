@@ -90,6 +90,15 @@ uint8_t position[4] = { };
 //[2] - правый стик, горизонталь.
 //[3] - направление поворота руля, 0 среднее положение (прямо), 1 направо, 2 налево.
 
+uint8_t LED_Arr[8][3] = { { 0, 0, 0 },    	//Черный:)
+		{ 250, 250, 250 },  //Белый
+		{ 250, 0, 250 },  	//Розовый
+		{ 250, 0, 0 },    	//Красный
+		{ 250, 250, 0 }, 	 //Желтый
+		{ 0, 250, 0 },   	 //Зеленый
+		{ 0, 250, 250 }, 	 //Аква
+		{ 0, 0, 250 } };  	 //Синий
+
 struct {
 	volatile uint8_t timerEvent;
 	volatile uint8_t adcDone;
@@ -101,10 +110,13 @@ struct {
 	volatile uint8_t contact;
 	volatile uint8_t counterError;
 	volatile uint8_t Led;
-
-
+	volatile uint8_t LedColorChange;
+	volatile uint8_t indexTransmitLed;
 
 } flagEvent;
+
+volatile uint8_t flag_irq = 0;
+volatile uint32_t time_irq = 0;  //дребезг
 
 uint8_t crc(uint8_t *pData, uint8_t size) {
 	uint16_t crc = 0;
@@ -115,12 +127,9 @@ uint8_t crc(uint8_t *pData, uint8_t size) {
 
 }
 
-void transmit(void){
+void transmit(void) {
 	flagEvent.dataReady = 1;
 }
-
-
-
 
 void cleanTxArr(uint8_t adress_slave_device) {
 	for (uint8_t i = 0; i < end_array_index; i++) {
@@ -133,10 +142,10 @@ void cleanTxArr(uint8_t adress_slave_device) {
 
 }
 
-void clearRxBuff(void){
+void clearRxBuff(void) {
 	for (uint8_t i = 0; i < end_array_index; i++) {
-			reciveBuff[i] = 0xFF; // код стоп байта
-		}
+		reciveBuff[i] = 0xFF; // код стоп байта
+	}
 }
 
 void initPult(void) {
@@ -150,8 +159,8 @@ void initPult(void) {
 	flagEvent.counterError = 0;
 	flagEvent.Led = 0;
 	flagEvent.txSize = 0;
-
-
+	flagEvent.LedColorChange = 0;
+	flagEvent.indexTransmitLed = 0;
 
 	HAL_ADCEx_Calibration_Start(&hadc1);			// калибровка ацп
 
@@ -183,7 +192,7 @@ void normalizeSticValue(void) {
 	////////////////////////////////////////////////////////////////////////////////// назад
 
 	if (SticPosADC[1] > 2200) {
-		position[0] = 20;
+		position[0] = 50;
 		position[1] = 2;
 	}
 
@@ -247,7 +256,7 @@ uint8_t pushArrTX(uint8_t addres_module, uint8_t *pData, uint8_t size,
 			return 1;
 		}
 	}
-	if (i != 3){
+	if (i != 3) {
 		i--;
 	}
 	transmitBuff[i] = addres_module;
@@ -263,7 +272,6 @@ uint8_t pushArrTX(uint8_t addres_module, uint8_t *pData, uint8_t size,
 	transmitBuff[i + size + 1] = 0xFC;  // конец команды
 	transmitBuff[i + size + 2] = crc(transmitBuff, i + size + 2); // хеш отправки
 
-
 	transmitBuff[i + size + 3] = 0xFF;  // стоп байт
 
 	i = i + (size + 3) + 1;
@@ -271,38 +279,39 @@ uint8_t pushArrTX(uint8_t addres_module, uint8_t *pData, uint8_t size,
 
 }
 
-void connect_ok(void){
+void connect_ok(void) {
 	uint8_t ok = 0xc8;
-	pushArrTX(adress_hc_12, &ok, 1, 1);				// можно пересылать настройки, которые были сделаны на пульте до коннекта слейва.
+	flagEvent.txSize = pushArrTX(adress_hc_12, &ok, 1, 1); // можно пересылать настройки, которые были сделаны на пульте до коннекта слейва.
 	transmit();
 
 }
 
 void parseArrRX(uint8_t *pData, uint8_t size) {
 
-	if (reciveBuff[flagEvent.rxSize - 2] == crc(reciveBuff, flagEvent.rxSize - 2)) {   //хеш сумма совпала
+	if (reciveBuff[flagEvent.rxSize - 2]
+			== crc(reciveBuff, flagEvent.rxSize - 2)) {   //хеш сумма совпала
 		if (flagEvent.contact == 0) { //если это приветствие
-			if(reciveBuff[3] == adress_hc_12){
-				if(reciveBuff[5] == 0xc8){
+			if (reciveBuff[3] == adress_hc_12) {
+				if (reciveBuff[5] == 0xc8) {
 					adress_slave_device = reciveBuff[0];
 					flagEvent.contact = 1;
-					__HAL_TIM_CLEAR_FLAG(&htim3, TIM_SR_UIF); 		// очищаем флаг
-					HAL_TIM_Base_Start_IT(&htim3); 					//Включаем прерывание
+					__HAL_TIM_CLEAR_FLAG(&htim3, TIM_SR_UIF); 	// очищаем флаг
+					HAL_TIM_Base_Start_IT(&htim3); 		//Включаем прерывание
 					cleanTxArr(adress_slave_device);
 					connect_ok();
 				}
 			}
 		}
 
-
-		if (flagEvent.contact == 1) {											//если уже поздоровались
-			if(reciveBuff[3] != 0x64){								//если слейв сообщил о принятии битого хеша
+		if (flagEvent.contact == 1) {					//если уже поздоровались
+			if (reciveBuff[3] != 0x64) {//если слейв сообщил о принятии битого хеша
 				flagEvent.counterError++;
 			}
 		}
 	}
 
-	if (reciveBuff[flagEvent.rxSize - 2] != crc(reciveBuff, flagEvent.rxSize - 2)) {
+	if (reciveBuff[flagEvent.rxSize - 2]
+			!= crc(reciveBuff, flagEvent.rxSize - 2)) {
 	}   //хеш сумма не совпала
 
 }
@@ -353,12 +362,9 @@ int main(void) {
 		/* USER CODE END WHILE */
 
 		/* USER CODE BEGIN 3 */
-		if (flagEvent.Led == 1){
-			flagEvent.Led = 0;
-			uint8_t led[3] = {250,0,0};
-			pushArrTX(adress_LED, led, sizeof(led), 1);
-		}
-
+		//if (flagEvent.LedColorChange == 1) {
+		//	flagEvent.LedColorChange = 0;
+		//}
 		if (flagEvent.rxReady == 1) {
 			flagEvent.rxReady = 0;
 			parseArrRX(reciveBuff, flagEvent.rxSize);
@@ -377,20 +383,25 @@ int main(void) {
 			normalizeSticValue();
 			flagEvent.txSize = pushArrTX(adress_engine, position, 2, 1); // заполнили массив данными для отправки
 			flagEvent.txSize = pushArrTX(adress_Servo, position + 0x02, 2, 1);
+			flagEvent.txSize = pushArrTX(adress_LED, LED_Arr[flagEvent.Led], 3,
+					1);
 			flagEvent.dataReady = 1;
 		}
 
 		if (flagEvent.dataReady == 1) {
 			flagEvent.dataReady = 0;
-			if (transmitBuff[7] == 0xFF){
-
-				transmitBuff[7] = 0xF1;
-
-			}
 			HAL_UART_Transmit(&huart1, transmitBuff, flagEvent.txSize, 100); // нужно по дма, в прервыании дма по окаончании отправки стирать transmitBuff
 			flagEvent.txSize = 0;
 			cleanTxArr(adress_slave_device);
 
+		}
+
+		if (flag_irq && (HAL_GetTick() - time_irq) > 200) {
+			__HAL_GPIO_EXTI_CLEAR_IT(GPIO_PIN_12);  // очищаем бит EXTI_PR
+			NVIC_ClearPendingIRQ(EXTI15_10_IRQn); // очищаем бит NVIC_ICPRx
+			HAL_NVIC_EnableIRQ(EXTI15_10_IRQn);   // включаем внешнее прерывание
+
+			flag_irq = 0;
 		}
 
 	}
@@ -465,9 +476,20 @@ void HAL_UARTEx_RxEventCallback(UART_HandleTypeDef *huart, uint16_t Size) {
 	flagEvent.rxSize = Size;
 }
 
-void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
-{
-  flagEvent.Led = 1;
+void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin) {
+
+	if (GPIO_Pin == GPIO_PIN_12) {
+		HAL_NVIC_DisableIRQ(EXTI15_10_IRQn); // сразу же отключаем прерывания на этом пине
+		// либо выполняем какое-то действие прямо тут, либо поднимаем флажок
+		flagEvent.Led++;
+		if (flagEvent.Led >= 9) {
+			flagEvent.Led = 0;
+		}
+		flag_irq = 1;
+		time_irq = HAL_GetTick();
+	}
+
+	//__HAL_GPIO_EXTI_CLEAR_IT(GPIO_Pin);
 }
 
 //==============================================================================================================
