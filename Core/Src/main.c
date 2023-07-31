@@ -27,6 +27,7 @@
 #include "usart.h"
 #include "gpio.h"
 
+
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 
@@ -138,7 +139,7 @@ void cleanTxArr(uint8_t adress_slave_device) {
 	transmitBuff[adress_slave_index] = adress_slave_device;
 	transmitBuff[adress_master_index] = adress_master_device;
 
-	transmitBuff[crc_adress_devices] = crc(transmitBuff, 2);    //crc
+	transmitBuff[crc_adress_devices] = crc(transmitBuff, 2);    //crc коментарий для примера комита
 
 }
 
